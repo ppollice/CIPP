@@ -134,7 +134,7 @@ export const createReportStyles = (themeOrColour = DEFAULT_BRAND_COLOUR) => {
       left: 0,
       right: 0,
       bottom: 0,
-      opacity: 0.5,
+      opacity: 0.85,
     },
     coverHero: { flex: 1, justifyContent: 'flex-start', alignItems: 'flex-start', paddingTop: 24 },
     coverLabel: {
