@@ -40,6 +40,7 @@ const Page = () => {
       queryKey="ListJITRoleTemplates"
       formControl={formControl}
       title="JIT Role Template"
+      formPageType="Edit"
       backButtonTitle="JIT Role Templates"
       postUrl="/api/EditJITRoleTemplate"
     >
@@ -82,6 +83,6 @@ const Page = () => {
   );
 };
 
-Page.getLayout = (page) => <DashboardLayout>{page}</DashboardLayout>;
+Page.getLayout = (page) => <DashboardLayout usesTenant={false}>{page}</DashboardLayout>;
 
 export default Page;

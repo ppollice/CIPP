@@ -8,8 +8,23 @@ import {
   clearGroupRowValues,
   collectionCountBounds,
   definitionInstanceType,
-  policyHasSetting,
+  mergeSettingInstance,
 } from '../../src/utils/intune-setting-builder'
+import {
+  forceListChildren,
+  forceListDefinition,
+  forceListEnabled,
+  forceListIdsDefinition,
+  forceListDisabled,
+} from '../mocks/intune-chrome-forcelist'
+import {
+  adobeExclusionsDefinition,
+  adobeExclusionsId,
+  adobeRuleId,
+  asrChildren,
+  asrGroupDefinition,
+  webshellRuleId,
+} from '../mocks/intune-asr-rules'
 
 // The discriminators are the whole point of this module. Intune rejects a policy whose settings do
 // not declare their type, and a wrong one is worse than a missing one - it is accepted by the schema
@@ -132,7 +147,7 @@ describe('buildSettingInstance', () => {
     expect(instance.simpleSettingValue.valueState).toBe('notEncrypted')
   })
 
-  it('gives a simple collection one entry, so there is something to type into', () => {
+  it('starts a simple collection empty, so no blank entry deploys if it is left untouched', () => {
     const instance = buildSettingInstance({
       ...stringDefinition,
       '@odata.type': `${PREFIX}SimpleSettingCollectionDefinition`,
@@ -140,10 +155,7 @@ describe('buildSettingInstance', () => {
     expect(instance['@odata.type']).toBe(
       `${PREFIX}SimpleSettingCollectionInstance`
     )
-    expect(instance.simpleSettingCollectionValue).toHaveLength(1)
-    expect(instance.simpleSettingCollectionValue[0]['@odata.type']).toBe(
-      `${PREFIX}StringSettingValue`
-    )
+    expect(instance.simpleSettingCollectionValue).toEqual([])
   })
 
   it('refuses a group with no children, because Intune rejects an empty group', () => {
@@ -357,18 +369,101 @@ describe('clearGroupRowValues', () => {
   })
 })
 
-describe('policyHasSetting', () => {
-  const policy = { settings: [buildSetting(choiceDefinition)] }
-
-  it('finds a setting the policy already configures', () => {
-    expect(policyHasSetting(policy, 'device_test_choice')).toBe(true)
+describe('building towards a nested setting', () => {
+  it('picks the option a wanted child sits under, and builds that child', () => {
+    const instance = buildSettingInstance(
+      forceListDefinition,
+      forceListChildren,
+      new Set([forceListIdsDefinition.id])
+    )
+    expect(instance.choiceSettingValue.value).toBe(forceListEnabled)
+    expect(instance.choiceSettingValue.children).toEqual([
+      {
+        '@odata.type': `${PREFIX}SimpleSettingCollectionInstance`,
+        settingDefinitionId: forceListIdsDefinition.id,
+        simpleSettingCollectionValue: [],
+      },
+    ])
   })
 
-  it('does not report one it has not', () => {
-    expect(policyHasSetting(policy, 'device_test_string')).toBe(false)
+  it('builds a list whose item format an empty string fails, because the list starts empty', () => {
+    expect(
+      buildSettingInstance(adobeExclusionsDefinition)
+        .simpleSettingCollectionValue
+    ).toEqual([])
   })
 
-  it('copes with a policy that has no settings at all', () => {
-    expect(policyHasSetting({}, 'device_test_choice')).toBe(false)
+  it('reaches a rule exclusion through the first mode that offers it when none is chosen', () => {
+    const instance = buildSettingInstance(
+      asrGroupDefinition,
+      asrChildren,
+      new Set([adobeRuleId, adobeExclusionsId])
+    )
+    const [adobe] = instance.groupSettingCollectionValue[0].children
+    expect(adobe.choiceSettingValue.value).toBe(`${adobeRuleId}_block`)
+    expect(adobe.choiceSettingValue.children[0].settingDefinitionId).toBe(
+      adobeExclusionsId
+    )
+  })
+
+  it('keeps the chosen mode of the rule and of its siblings when building towards an exclusion', () => {
+    const instance = buildSettingInstance(
+      asrGroupDefinition,
+      asrChildren,
+      new Set([
+        adobeRuleId,
+        adobeExclusionsId,
+        `${adobeRuleId}_audit`,
+        `${webshellRuleId}_warn`,
+      ])
+    )
+    const [adobe, webshell] = instance.groupSettingCollectionValue[0].children
+    expect(adobe.choiceSettingValue.value).toBe(`${adobeRuleId}_audit`)
+    expect(adobe.choiceSettingValue.children[0].settingDefinitionId).toBe(
+      adobeExclusionsId
+    )
+    expect(webshell.choiceSettingValue).toEqual({
+      value: `${webshellRuleId}_warn`,
+      children: [],
+    })
+  })
+
+  it('still builds the default option when nothing beneath is wanted', () => {
+    const instance = buildSettingInstance(
+      forceListDefinition,
+      forceListChildren
+    )
+    expect(instance.choiceSettingValue).toEqual({
+      value: forceListDisabled,
+      children: [],
+    })
+  })
+})
+
+describe('mergeSettingInstance', () => {
+  const enabled = buildSettingInstance(
+    forceListDefinition,
+    forceListChildren,
+    new Set([forceListIdsDefinition.id])
+  )
+  const disabled = buildSettingInstance(forceListDefinition, forceListChildren)
+
+  it('moves an existing parent onto the option that carries the child', () => {
+    expect(mergeSettingInstance(disabled, enabled)).toEqual(enabled)
+  })
+
+  it('keeps values already entered when the option is unchanged', () => {
+    const filled = structuredClone(enabled)
+    filled.choiceSettingValue.children[0].simpleSettingCollectionValue = [
+      {
+        '@odata.type': `${PREFIX}StringSettingValue`,
+        value: 'abcdefghijklmnop',
+      },
+    ]
+    expect(mergeSettingInstance(filled, enabled)).toEqual(filled)
+  })
+
+  it('drops the children of an option that is no longer selected', () => {
+    expect(mergeSettingInstance(enabled, disabled)).toEqual(disabled)
   })
 })

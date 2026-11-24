@@ -32,6 +32,7 @@ import {
   formatCaCoverageReason,
   formatCaCoverageReasons,
 } from './format-ca-coverage-reason'
+import { getImpactResultColor, getImpactResultLabel } from './ca-policy-impact'
 import { getSignInErrorCodeTranslation } from './get-cipp-signin-errorcode-translation'
 import { CollapsibleChipList } from '../components/CippComponents/CollapsibleChipList'
 import countryList from '../data/countryList.json'
@@ -110,6 +111,8 @@ const timeAgoArray = [
   'lastRemediated', // Baselines
   'deviationAt', // Baselines
   'deviationExpires', // Baselines
+  'overrideAt', // Baselines
+  'overrideExpires', // Baselines
   'enteredStageAt', // Baselines
   'LastRefresh',
   'createdDateTime',
@@ -361,6 +364,7 @@ export const getCippFormatting = (
   if (
     cellName === 'prohibitSendReceiveQuotaInBytes' ||
     cellName === 'storageUsedInBytes' ||
+    cellName === 'fileStreamSizeInBytes' ||
     cellName === 'cleanupReclaimBytes' ||
     cellName === 'versionEstimateBytes' ||
     cellName === 'ArchiveSize'
@@ -508,6 +512,7 @@ export const getCippFormatting = (
   if (
     cellName === 'percentOfTenant' ||
     cellName === 'percentOfSite' ||
+    cellName === 'versionPercent' ||
     cellName === 'percentUsed'
   ) {
     if (data === undefined || data === null || data === '') {
@@ -825,7 +830,7 @@ export const getCippFormatting = (
   if (cellName === 'sourceTemplate') {
     // Baselines: which template's configuration is effective for this row
     if (isText) return data
-    const color = data === 'Tenant Override' ? 'success' : 'info'
+    const color = data === 'Tenant Override' ? 'warning' : 'info'
     return <Chip variant="outlined" label={data} size="small" color={color} />
   }
 
@@ -1174,6 +1179,18 @@ export const getCippFormatting = (
     ) : (
       <CippDataTableButton data={data} tableTitle="Assigned Groups" />
     )
+  }
+
+  // Template usage (Intune templates): one chip per baseline / standards template that
+  // references the template, instead of an opaque "N items" button (#1220).
+  if (
+    cellName === 'usage' &&
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.every((entry) => typeof entry?.label === 'string')
+  ) {
+    const labels = data.map((entry) => entry.label)
+    return isText ? labels.join(', ') : renderChipList(labels, 3)
   }
 
   // handle role members
@@ -1556,6 +1573,23 @@ export const getCippFormatting = (
 
   if (cellName === 'AutoMapUrl') {
     return isText ? data : <CippCopyToClipBoard text={data} />
+  }
+
+  // CA policy usage report: how the policy itself evaluated for a sampled sign-in.
+  if (cellName === 'policyResult') {
+    const label = getImpactResultLabel(data)
+    if (isText) {
+      return label
+    }
+    const tone = getImpactResultColor(data)
+    return (
+      <Chip
+        variant="outlined"
+        label={label}
+        size="small"
+        color={tone === 'neutral' ? 'default' : tone}
+      />
+    )
   }
 
   // CA policy identity coverage: grid shows a count/top-reason summary; full lists belong in off-canvas.

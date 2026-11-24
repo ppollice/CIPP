@@ -21,6 +21,7 @@ import {
   getRowTenant,
   withRowTenant,
 } from '../../utils/resolve-row-templates'
+import { tenantScope } from '../../utils/tenant-selection'
 import {
   extractCsvColumnValues,
   mergeCsvFormFields,
@@ -178,7 +179,7 @@ export const CippApiDialog = (props) => {
         if (Array.isArray(row)) {
           const arrayData = row.map((singleRow) => {
             const commonData = {
-              tenantFilter: getRowTenant(singleRow, tenantFilter),
+              ...tenantScope(getRowTenant(singleRow, tenantFilter)),
               ...resolvedFormData,
               ...addedFieldData,
             }
@@ -214,7 +215,7 @@ export const CippApiDialog = (props) => {
 
       // SINGLE ROW CASE
       const commonData = {
-        tenantFilter: getRowTenant(row, tenantFilter),
+        ...tenantScope(getRowTenant(row, tenantFilter)),
         ...resolvedFormData,
         ...addedFieldData,
       }
@@ -288,23 +289,13 @@ export const CippApiDialog = (props) => {
     }
   }, [createDialog.open, api?.setDefaultValues])
 
-  const escapeHtml = (text) => {
-    if (typeof text !== 'string') return text
-    const div = document.createElement('div')
-    div.textContent = text
-    return div.innerHTML
-  }
-
+  // Values land in React text nodes, which escape on render; pre-escaping shows &amp; to the user.
   const getRawNestedValue = (obj, path) => {
     return path
       .split('.')
       .reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj)
   }
-
-  const getNestedValue = (obj, path) => {
-    const value = getRawNestedValue(obj, path)
-    return typeof value === 'string' ? escapeHtml(value) : value
-  }
+  const getNestedValue = getRawNestedValue
 
   // Handle link actions - opens the link when dialog opens, using ref to prevent duplicates
   useEffect(() => {

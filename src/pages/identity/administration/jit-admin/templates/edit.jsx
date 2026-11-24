@@ -123,7 +123,8 @@ const Page = () => {
         resetForm={false}
         queryKey="*JITAdminTemplate*"
         formControl={formControl}
-        title="Edit JIT Admin Template"
+        title="JIT Admin Template"
+        formPageType="Edit"
         backButtonTitle="JIT Admin Templates"
         postUrl="/api/EditJITAdminTemplate"
       >
@@ -557,6 +558,6 @@ const Page = () => {
   );
 };
 
-Page.getLayout = (page) => <DashboardLayout>{page}</DashboardLayout>;
+Page.getLayout = (page) => <DashboardLayout usesTenant={false}>{page}</DashboardLayout>;
 
 export default Page;
